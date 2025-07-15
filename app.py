@@ -4,43 +4,39 @@ import os
 
 USERS_FILE = "users.json"
 
-# Initialize users file with admin if not exists
-if not os.path.exists(USERS_FILE):
-    with open(USERS_FILE, "w") as f:
-        json.dump({"cha": "supercha123"}, f)  # admin user
-
 def load_users():
-    with open(USERS_FILE, "r") as f:
-        return json.load(f)
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    else:
+        return {}
 
 def save_users(users):
     with open(USERS_FILE, "w") as f:
         json.dump(users, f)
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "username" not in st.session_state:
-    st.session_state.username = ""
-
 def login():
-    st.header("🔐 Login")
+    st.header("🔑 Login")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-    if st.button("Login"):
+    login_clicked = st.button("Login")
+
+    if login_clicked:
         users = load_users()
         if username in users and users[username] == password:
             st.session_state.logged_in = True
             st.session_state.username = username
-            st.success(f"Welcome, {username}!")
             st.experimental_rerun()
         else:
             st.error("❌ Invalid username or password")
 
 def signup():
     st.header("📝 Sign Up")
-    new_username = st.text_input("Create Username")
-    new_password = st.text_input("Create Password", type="password")
-    if st.button("Sign Up"):
+    new_username = st.text_input("Create Username", key="signup_username")
+    new_password = st.text_input("Create Password", type="password", key="signup_password")
+    signup_clicked = st.button("Sign Up")
+
+    if signup_clicked:
         users = load_users()
         if new_username in users:
             st.warning("⚠️ Username already exists")
@@ -48,10 +44,23 @@ def signup():
             users[new_username] = new_password
             save_users(users)
             st.success("✅ Signup successful! Now please login.")
-            st.experimental_rerun()
+            st.session_state.signup_done = True
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+if "signup_done" not in st.session_state:
+    st.session_state.signup_done = False
 
 def main():
     if not st.session_state.logged_in:
+        if st.session_state.signup_done:
+            st.session_state.signup_done = False
+            st.experimental_rerun()
+
         choice = st.radio("Choose action:", ["Login", "Sign Up"])
         if choice == "Login":
             login()
@@ -63,6 +72,6 @@ def main():
             st.session_state.logged_in = False
             st.session_state.username = ""
             st.experimental_rerun()
-        # Here you can add more app features for logged-in users
 
-main()
+if __name__ == "__main__":
+    main()
