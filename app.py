@@ -1,124 +1,96 @@
-# app.py
 import streamlit as st
-import os
 import json
-from datetime import datetime
+import os
 
-# Paths and constants
-DATA_FILE = 'data.json'
-UPLOAD_DIR = 'uploads'
-REQUIRED_DOCS = [
-    'Contract', 'Commercial Invoice', 'Packing List',
-    'Bill of Lading', 'Phytosanitary Certificate', 'Certificate of Origin'
-]
+# Load user database
+USERS_FILE = "users.json"
+if not os.path.exists(USERS_FILE):
+    with open(USERS_FILE, "w") as f:
+        json.dump({"cha": "supercha123"}, f)  # Admin account
 
-# Load existing data
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
-    return []
+def load_users():
+    with open(USERS_FILE, "r") as f:
+        return json.load(f)
 
-# Save data
-def save_data(data):
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
+def save_users(users):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f)
 
-# Create upload folder if not exists
-def make_folder(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+# Session state init
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
 
-# Upload document function
-def upload_doc(shipment_id, doc_type):
-    file = st.file_uploader(f"Upload {doc_type}", type=['pdf', 'jpg', 'png'], key=f"{shipment_id}_{doc_type}")
-    if file:
-        path = os.path.join(UPLOAD_DIR, shipment_id)
-        make_folder(path)
-        ext = file.name.split('.')[-1]
-        with open(os.path.join(path, f"{doc_type}.{ext}"), 'wb') as f:
-            f.write(file.getbuffer())
-        st.success(f"{doc_type} uploaded.")
+# Login page
+def login():
+    st.title("🔐 Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        users = load_users()
+        if username in users and users[username] == password:
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.success("✅ Login successful")
+            st.experimental_rerun()
+        else:
+            st.error("❌ Incorrect username or password")
 
-# Check uploaded docs
-def check_uploaded(shipment_id):
-    path = os.path.join(UPLOAD_DIR, shipment_id)
-    uploaded = []
-    if os.path.exists(path):
-        uploaded = [f.split('.')[0] for f in os.listdir(path)]
-    return uploaded
+# Signup page
+def signup():
+    st.title("📝 Sign Up")
+    username = st.text_input("Create Username")
+    password = st.text_input("Create Password", type="password")
+    if st.button("Sign Up"):
+        users = load_users()
+        if username in users:
+            st.warning("⚠️ Username already exists")
+        else:
+            users[username] = password
+            save_users(users)
+            st.success("✅ Signup successful. Now login.")
+            st.experimental_rerun()
 
-# Streamlit UI
-st.set_page_config(page_title="Coffee Export Tracker", layout="wide")
-st.title("📦 Coffee Export Documentation Tracker")
+# Document form
+def document_entry():
+    st.title("📄 Coffee Export Document Form")
 
-menu = ["Add Shipment", "View Shipments"]
-choice = st.sidebar.selectbox("Menu", menu)
+    shipment_id = st.text_input("Shipment ID")
+    buyer_name = st.text_input("Buyer Name")
+    etd = st.date_input("ETD (Estimated Time of Departure)")
+    contract_date = st.date_input("Contract Date")
 
-all_data = load_data()
+    doc_file = st.file_uploader("Upload Supporting Document (PDF, DOCX, XLSX)", type=["pdf", "docx", "xlsx"])
 
-if choice == "Add Shipment":
-    st.subheader("➕ Add New Shipment")
-    with st.form(key='add_form'):
-        shipment_id = st.text_input("Shipment ID")
-        buyer = st.text_input("Buyer Name")
-        etd = st.date_input("ETD")
-        contract_date = st.date_input("Contract Date")
-        bl_number = st.text_input("Bill of Lading Number")
-        container_no = st.text_input("Container Number")
-        coffee_type = st.text_input("Coffee Type / Grade")
-        quantity = st.number_input("Quantity (bags)", min_value=0, step=1)
-        port_loading = st.text_input("Port of Loading")
-        exporter_name = st.text_input("Exporter Name")
-        submitted = st.form_submit_button("Save Shipment")
+    if st.button("Submit"):
+        st.success("✅ Document submitted")
+        # You can extend this to save data in a database or CSV
 
-        if submitted:
-            shipment = {
-                "shipment_id": shipment_id,
-                "buyer": buyer,
-                "etd": etd.strftime('%Y-%m-%d'),
-                "contract_date": contract_date.strftime('%Y-%m-%d'),
-                "bl_number": bl_number,
-                "container_no": container_no,
-                "coffee_type": coffee_type,
-                "quantity": quantity,
-                "port_loading": port_loading,
-                "exporter_name": exporter_name,
-                "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            all_data.append(shipment)
-            save_data(all_data)
-            st.success("Shipment added.")
+# Admin dashboard
+def admin_dashboard():
+    st.title("👑 Admin Dashboard - All Submissions")
+    st.info("🔧 You can add functionality to view/export user submissions here.")
 
-elif choice == "View Shipments":
-    st.subheader("📄 Shipment List")
-    if not all_data:
-        st.info("No shipments yet.")
+# Navigation
+def main():
+    if not st.session_state.logged_in:
+        menu = st.sidebar.radio("Choose an option", ["Login", "Sign Up"])
+        if menu == "Login":
+            login()
+        else:
+            signup()
     else:
-        for shipment in all_data:
-            with st.expander(f"🚢 {shipment['shipment_id']} - {shipment['buyer']}"):
-                st.write(f"**ETD:** {shipment['etd']}")
-                st.write(f"**Contract Date:** {shipment['contract_date']}")
-                st.write(f"**BL Number:** {shipment.get('bl_number','')}")
-                st.write(f"**Container No.:** {shipment.get('container_no','')}")
-                st.write(f"**Coffee Type:** {shipment.get('coffee_type','')}")
-                st.write(f"**Quantity (bags):** {shipment.get('quantity','')}")
-                st.write(f"**Port of Loading:** {shipment.get('port_loading','')}")
-                st.write(f"**Exporter Name:** {shipment.get('exporter_name','')}")
-                uploaded = check_uploaded(shipment['shipment_id'])
+        st.sidebar.success(f"Welcome, {st.session_state.username}")
+        if st.sidebar.button("Logout"):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.experimental_rerun()
 
-                for doc in REQUIRED_DOCS:
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        upload_doc(shipment['shipment_id'], doc)
-                    with col2:
-                        if doc in uploaded:
-                            st.success("Uploaded")
-                        else:
-                            st.error("Missing")
+        if st.session_state.username == "cha":
+            admin_dashboard()
+        else:
+            document_entry()
 
-                missing = [d for d in REQUIRED_DOCS if d not in uploaded]
-                if missing:
-                    st.warning(f"🚨 Missing documents: {', '.join(missing)}")
-                else:
-                    st.success("✅ All documents uploaded.")
+main()
+
